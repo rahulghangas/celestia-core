@@ -903,7 +903,7 @@ func (ll *longLogger) print() {
 
 func (ll *longLogger) addMsgIf(msg string, t, min int64) {
 	if t > min {
-		ll.msgs = append(ll.msgs, msg)
+		ll.msgs = append(ll.msgs, fmt.Sprintf("%s %d\n", msg, t))
 	}
 }
 
@@ -938,12 +938,17 @@ func (cs *State) handleMsg(mi msgInfo) {
 	case *ProposalMessage:
 		// will not cause transition.
 		// once proposal is set, we can receive block parts
+		t := newTimer()
 		err = cs.setProposal(msg.Proposal)
-
+		ll.addMsgIf("set proposal", t.end(), 1000)
+		if err != nil {
+			ll.msgs = append(ll.msgs, fmt.Sprintf("set prop error %v\n", err.Error()))
+		}
 	case *BlockPartMessage:
 		// if the proposal is complete, we'll enterPrevote or tryFinalizeCommit
+		t := newTimer()
 		added, err = cs.addProposalBlockPart(msg, peerID)
-
+		ll.addMsgIf("added proposal block part", t.end(), 1000)
 		// We unlock here to yield to any routines that need to read the the RoundState.
 		// Previously, this code held the lock from the point at which the final block
 		// part was received until the block executed against the application.
@@ -956,16 +961,16 @@ func (cs *State) handleMsg(mi msgInfo) {
 		// RoundState with the updated copy or by emitting RoundState events in
 		// more places for routines depending on it to listen for.
 		cs.mtx.Unlock()
-		t := newTimer()
+		t = newTimer()
 		cs.mtx.Lock()
-		if end := t.end(); end > 1000 {
-			ll.addMsgIf(fmt.Sprintf("waited for block part messsage %d", end), end, 1000)
-		}
+		ll.addMsgIf("waited for block part messsage", t.end(), 1000)
 		if added && cs.ProposalBlockParts.IsComplete() {
 			cs.handleCompleteProposal(msg.Height)
 		}
 		if added {
+			t = newTimer()
 			cs.statsMsgQueue <- mi
+			ll.addMsgIf("qed for statsMsgQueue block parts message", t.end(), 1000)
 		}
 
 		if err != nil && msg.Round != cs.Round {
@@ -981,9 +986,13 @@ func (cs *State) handleMsg(mi msgInfo) {
 	case *VoteMessage:
 		// attempt to add the vote and dupeout the validator if its a duplicate signature
 		// if the vote gives us a 2/3-any or 2/3-one, we transition
+		t := newTimer()
 		added, err = cs.tryAddVote(msg.Vote, peerID)
+		ll.addMsgIf("adding vote", t.end(), 1000)
 		if added {
+			t = newTimer()
 			cs.statsMsgQueue <- mi
+			ll.addMsgIf("qed for vote message", t.end(), 1000)
 		}
 
 		// if err == ErrAddingVote {
