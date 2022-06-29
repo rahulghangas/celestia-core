@@ -308,6 +308,8 @@ func (cs *State) SetPrivValidator(priv types.PrivValidator) {
 // SetTimeoutTicker sets the local timer. It may be useful to overwrite for
 // testing.
 func (cs *State) SetTimeoutTicker(timeoutTicker TimeoutTicker) {
+	now := time.Now()
+	defer printTimeSince(now, "setTimeoutTicker")
 	cs.mtx.Lock()
 	cs.timeoutTicker = timeoutTicker
 	cs.mtx.Unlock()
@@ -860,8 +862,15 @@ func (cs *State) receiveRoutine(maxSteps int) {
 	}
 }
 
+func printTimeSince(t time.Time, msg string) {
+	now := time.Now()
+	fmt.Println("toal time waiting/locked --------------------", msg, now.Sub(t).Microseconds())
+}
+
 // state transitions on complete-proposal, 2/3-any, 2/3-one
 func (cs *State) handleMsg(mi msgInfo) {
+	now := time.Now()
+	defer printTimeSince(now, "handleMsg")
 	cs.mtx.Lock()
 	defer cs.mtx.Unlock()
 	var (
@@ -962,6 +971,8 @@ func (cs *State) handleTimeout(ti timeoutInfo, rs cstypes.RoundState) {
 	}
 
 	// the timeout will now cause a state transition
+	now := time.Now()
+	defer printTimeSince(now, "handleTimeout")
 	cs.mtx.Lock()
 	defer cs.mtx.Unlock()
 
@@ -1003,6 +1014,8 @@ func (cs *State) handleTimeout(ti timeoutInfo, rs cstypes.RoundState) {
 }
 
 func (cs *State) handleTxsAvailable() {
+	now := time.Now()
+	defer printTimeSince(now, "handleTxsAvailable")
 	cs.mtx.Lock()
 	defer cs.mtx.Unlock()
 
