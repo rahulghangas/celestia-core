@@ -863,8 +863,10 @@ func (cs *State) receiveRoutine(maxSteps int) {
 }
 
 func printTimeSince(t time.Time, msg string) {
-	now := time.Now()
-	fmt.Println("toal time waiting/locked --------------------", msg, now.Sub(t).Microseconds())
+	total := time.Now().Sub(t).Milliseconds()
+	if total > 1000 {
+		fmt.Println("total time waiting/locked --------------------", msg, string(debug.Stack()))
+	}
 }
 
 // state transitions on complete-proposal, 2/3-any, 2/3-one
