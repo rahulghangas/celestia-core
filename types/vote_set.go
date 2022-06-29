@@ -3,7 +3,9 @@ package types
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	tmsync "github.com/tendermint/tendermint/internal/libs/sync"
 	"github.com/tendermint/tendermint/libs/bits"
@@ -131,6 +133,68 @@ func (voteSet *VoteSet) Size() int {
 	return voteSet.valSet.Size()
 }
 
+var logFile *os.File
+
+type LongLogger struct {
+	start   time.Time
+	logFile *os.File
+	msgs    []string
+}
+
+func NewLongLogger(s string) *LongLogger {
+	if logFile == nil {
+		var err error
+		logFile, err = os.OpenFile("mutex_logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return &LongLogger{
+		start:   time.Now(),
+		logFile: logFile,
+		msgs:    []string{s},
+	}
+}
+
+func (ll *LongLogger) Write(s string) {
+	fmt.Println(s)
+	_, err := ll.logFile.WriteString(s)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (ll *LongLogger) Print() {
+	if total := time.Now().Sub(ll.start).Milliseconds(); total > 1000 || len(ll.msgs) > 0 {
+		ll.Write(fmt.Sprintf("total_time_locked: %d\n", total))
+		for _, msg := range ll.msgs {
+			ll.Write(msg)
+		}
+		ll.msgs = []string{}
+		ll.Write("----------------------------------")
+	}
+}
+
+func (ll *LongLogger) AddMsgIf(msg string, t, min int64) {
+	if t > min {
+		ll.msgs = append(ll.msgs, fmt.Sprintf("%s %d\n", msg, t))
+	}
+}
+
+type Timer struct {
+	start time.Time
+}
+
+func (t *Timer) End() int64 {
+	return time.Now().Sub(t.start).Milliseconds()
+}
+
+func NewTimer() *Timer {
+	return &Timer{
+		start: time.Now(),
+	}
+}
+
 // Returns added=true if vote is valid and new.
 // Otherwise returns err=ErrVote[
 //		UnexpectedStep | InvalidIndex | InvalidAddress |
@@ -144,6 +208,8 @@ func (voteSet *VoteSet) AddVote(vote *Vote) (added bool, err error) {
 	if voteSet == nil {
 		panic("AddVote() on nil VoteSet")
 	}
+	ll := NewLongLogger("adding vote to vote set")
+	defer ll.Print()
 	voteSet.mtx.Lock()
 	defer voteSet.mtx.Unlock()
 

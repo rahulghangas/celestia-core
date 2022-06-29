@@ -860,71 +860,10 @@ func (cs *State) receiveRoutine(maxSteps int) {
 	}
 }
 
-var logFile *os.File
-
-type longLogger struct {
-	start   time.Time
-	logFile *os.File
-	msgs    []string
-}
-
-func newLongLogger() *longLogger {
-	if logFile == nil {
-		var err error
-		logFile, err = os.OpenFile("mutex_logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			panic(err)
-		}
-	}
-	return &longLogger{
-		start:   time.Now(),
-		logFile: logFile,
-	}
-}
-
-func (ll *longLogger) write(s string) {
-	fmt.Println(s)
-	_, err := ll.logFile.WriteString(s)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (ll *longLogger) print() {
-	if total := time.Now().Sub(ll.start).Milliseconds(); total > 1000 || len(ll.msgs) > 0 {
-		ll.write(fmt.Sprintf("total_time_locked: %d", total))
-		for _, msg := range ll.msgs {
-			ll.write(msg)
-		}
-		ll.msgs = []string{}
-		ll.write("----------------------------------")
-	}
-}
-
-func (ll *longLogger) addMsgIf(msg string, t, min int64) {
-	if t > min {
-		ll.msgs = append(ll.msgs, fmt.Sprintf("%s %d\n", msg, t))
-	}
-}
-
-type timer struct {
-	start time.Time
-}
-
-func (t *timer) end() int64 {
-	return time.Now().Sub(t.start).Milliseconds()
-}
-
-func newTimer() *timer {
-	return &timer{
-		start: time.Now(),
-	}
-}
-
 // state transitions on complete-proposal, 2/3-any, 2/3-one
 func (cs *State) handleMsg(mi msgInfo) {
-	ll := newLongLogger()
-	defer ll.print()
+	ll := types.NewLongLogger("handing message")
+	defer ll.Print()
 	cs.mtx.Lock()
 	defer cs.mtx.Unlock()
 	var (
@@ -938,17 +877,17 @@ func (cs *State) handleMsg(mi msgInfo) {
 	case *ProposalMessage:
 		// will not cause transition.
 		// once proposal is set, we can receive block parts
-		t := newTimer()
+		t := types.NewTimer()
 		err = cs.setProposal(msg.Proposal)
-		ll.addMsgIf("set proposal", t.end(), 1000)
+		ll.AddMsgIf("set proposal", t.End(), 1000)
 		if err != nil {
-			ll.msgs = append(ll.msgs, fmt.Sprintf("set prop error %v\n", err.Error()))
+			ll.Write(fmt.Sprintf("set prop error %v\n", err.Error()))
 		}
 	case *BlockPartMessage:
 		// if the proposal is complete, we'll enterPrevote or tryFinalizeCommit
-		t := newTimer()
+		t := types.NewTimer()
 		added, err = cs.addProposalBlockPart(msg, peerID)
-		ll.addMsgIf("added proposal block part", t.end(), 1000)
+		ll.AddMsgIf("added proposal block part", t.End(), 1000)
 		// We unlock here to yield to any routines that need to read the the RoundState.
 		// Previously, this code held the lock from the point at which the final block
 		// part was received until the block executed against the application.
@@ -961,16 +900,16 @@ func (cs *State) handleMsg(mi msgInfo) {
 		// RoundState with the updated copy or by emitting RoundState events in
 		// more places for routines depending on it to listen for.
 		cs.mtx.Unlock()
-		t = newTimer()
+		t = types.NewTimer()
 		cs.mtx.Lock()
-		ll.addMsgIf("waited for block part messsage", t.end(), 1000)
+		ll.AddMsgIf("waited for block part messsage", t.End(), 1000)
 		if added && cs.ProposalBlockParts.IsComplete() {
 			cs.handleCompleteProposal(msg.Height)
 		}
 		if added {
-			t = newTimer()
+			t = types.NewTimer()
 			cs.statsMsgQueue <- mi
-			ll.addMsgIf("qed for statsMsgQueue block parts message", t.end(), 1000)
+			ll.AddMsgIf("qed for statsMsgQueue block parts message", t.End(), 1000)
 		}
 
 		if err != nil && msg.Round != cs.Round {
@@ -986,13 +925,13 @@ func (cs *State) handleMsg(mi msgInfo) {
 	case *VoteMessage:
 		// attempt to add the vote and dupeout the validator if its a duplicate signature
 		// if the vote gives us a 2/3-any or 2/3-one, we transition
-		t := newTimer()
+		t := types.NewTimer()
 		added, err = cs.tryAddVote(msg.Vote, peerID)
-		ll.addMsgIf("adding vote", t.end(), 1000)
+		ll.AddMsgIf("adding vote", t.End(), 1000)
 		if added {
-			t = newTimer()
+			t = types.NewTimer()
 			cs.statsMsgQueue <- mi
-			ll.addMsgIf("qed for vote message", t.end(), 1000)
+			ll.AddMsgIf("qed for vote message", t.End(), 1000)
 		}
 
 		// if err == ErrAddingVote {
