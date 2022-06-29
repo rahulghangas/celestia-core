@@ -860,8 +860,71 @@ func (cs *State) receiveRoutine(maxSteps int) {
 	}
 }
 
+var logFile *os.File
+
+type longLogger struct {
+	start   time.Time
+	logFile *os.File
+	msgs    []string
+}
+
+func newLongLogger() *longLogger {
+	if logFile == nil {
+		var err error
+		logFile, err = os.OpenFile("mutex_logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return &longLogger{
+		start:   time.Now(),
+		logFile: logFile,
+	}
+}
+
+func (ll *longLogger) write(s string) {
+	fmt.Println(s)
+	_, err := ll.logFile.WriteString(s)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (ll *longLogger) print() {
+	if total := time.Now().Sub(ll.start).Milliseconds(); total > 1000 || len(ll.msgs) > 0 {
+		ll.write(fmt.Sprintf("total_time_locked: %d", total))
+		for _, msg := range ll.msgs {
+			ll.write(msg)
+		}
+		ll.msgs = []string{}
+		ll.write("----------------------------------")
+	}
+}
+
+func (ll *longLogger) addMsgIf(msg string, t, min int64) {
+	if t > min {
+		ll.msgs = append(ll.msgs, msg)
+	}
+}
+
+type timer struct {
+	start time.Time
+}
+
+func (t *timer) end() int64 {
+	return time.Now().Sub(t.start).Milliseconds()
+}
+
+func newTimer() *timer {
+	return &timer{
+		start: time.Now(),
+	}
+}
+
 // state transitions on complete-proposal, 2/3-any, 2/3-one
 func (cs *State) handleMsg(mi msgInfo) {
+	ll := newLongLogger()
+	defer ll.print()
 	cs.mtx.Lock()
 	defer cs.mtx.Unlock()
 	var (
@@ -893,8 +956,11 @@ func (cs *State) handleMsg(mi msgInfo) {
 		// RoundState with the updated copy or by emitting RoundState events in
 		// more places for routines depending on it to listen for.
 		cs.mtx.Unlock()
-
+		t := newTimer()
 		cs.mtx.Lock()
+		if end := t.end(); end > 1000 {
+			ll.addMsgIf(fmt.Sprintf("waited for block part messsage %d", end), end, 1000)
+		}
 		if added && cs.ProposalBlockParts.IsComplete() {
 			cs.handleCompleteProposal(msg.Height)
 		}
