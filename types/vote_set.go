@@ -165,7 +165,7 @@ func (ll *LongLogger) Write(s string) {
 }
 
 func (ll *LongLogger) Print() {
-	if total := time.Now().Sub(ll.start).Milliseconds(); total > 1000 || len(ll.msgs) > 0 {
+	if total := time.Now().Sub(ll.start).Milliseconds(); total > 1000 || len(ll.msgs) > 1 {
 		ll.Write(fmt.Sprintf("total_time_locked: %d\n", total))
 		for _, msg := range ll.msgs {
 			ll.Write(msg)
