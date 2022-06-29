@@ -12,7 +12,7 @@ import (
 	"github.com/tendermint/tendermint/libs/service"
 )
 
-const defaultCapacity = 0
+const defaultCapacity = 512
 
 type EventBusSubscriber interface {
 	Subscribe(ctx context.Context, subscriber string, query tmpubsub.Query, outCapacity ...int) (Subscription, error)

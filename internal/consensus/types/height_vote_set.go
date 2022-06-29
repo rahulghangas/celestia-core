@@ -114,6 +114,8 @@ func (hvs *HeightVoteSet) addRound(round int32) {
 // Duplicate votes return added=false, err=nil.
 // By convention, peerID is "" if origin is self.
 func (hvs *HeightVoteSet) AddVote(vote *types.Vote, peerID types.NodeID) (added bool, err error) {
+	ll := types.NewLongLogger("adding vote height vote set")
+	defer ll.Print()
 	hvs.mtx.Lock()
 	defer hvs.mtx.Unlock()
 	if !types.IsVoteTypeValid(vote.Type) {

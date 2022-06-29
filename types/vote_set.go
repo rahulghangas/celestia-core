@@ -152,7 +152,7 @@ func NewLongLogger(s string) *LongLogger {
 	return &LongLogger{
 		start:   time.Now(),
 		logFile: logFile,
-		msgs:    []string{s},
+		msgs:    []string{s + "\n"},
 	}
 }
 
@@ -208,8 +208,8 @@ func (voteSet *VoteSet) AddVote(vote *Vote) (added bool, err error) {
 	if voteSet == nil {
 		panic("AddVote() on nil VoteSet")
 	}
-	ll := NewLongLogger("adding vote to vote set")
-	defer ll.Print()
+	// ll := NewLongLogger("adding vote to vote set")
+	// defer ll.Print()
 	voteSet.mtx.Lock()
 	defer voteSet.mtx.Unlock()
 

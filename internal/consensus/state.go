@@ -2080,9 +2080,11 @@ func (cs *State) addVote(vote *types.Vote, peerID types.NodeID) (added bool, err
 		"val_index", vote.ValidatorIndex,
 		"cs_height", cs.Height,
 	)
-
+	ll := types.NewLongLogger("adding vote to consensus state")
+	defer ll.Print()
 	// A precommit for the previous height?
 	// These come in while we wait timeoutCommit
+	t1 := types.NewTimer()
 	if vote.Height+1 == cs.Height && vote.Type == tmproto.PrecommitType {
 		if cs.Step != cstypes.RoundStepNewHeight {
 			// Late precommit at prior height is ignored
@@ -2111,6 +2113,9 @@ func (cs *State) addVote(vote *types.Vote, peerID types.NodeID) (added bool, err
 
 		return
 	}
+	ll.AddMsgIf("t1", t1.End(), 1000)
+
+	t2 := types.NewTimer()
 
 	// Height mismatch is ignored.
 	// Not necessarily a bad peer, but not favorable behavior.
@@ -2126,10 +2131,18 @@ func (cs *State) addVote(vote *types.Vote, peerID types.NodeID) (added bool, err
 		return
 	}
 
+	ll.AddMsgIf("t2", t2.End(), 1000)
+
+	t22 := types.NewTimer()
 	if err := cs.eventBus.PublishEventVote(types.EventDataVote{Vote: vote}); err != nil {
 		return added, err
 	}
+	ll.AddMsgIf("t2.2", t22.End(), 1000)
+	t23 := types.NewTimer()
 	cs.evsw.FireEvent(types.EventVoteValue, vote)
+	ll.AddMsgIf("t2.3", t23.End(), 1000)
+
+	t3 := types.NewTimer()
 
 	switch vote.Type {
 	case tmproto.PrevoteType:
@@ -2243,6 +2256,7 @@ func (cs *State) addVote(vote *types.Vote, peerID types.NodeID) (added bool, err
 	default:
 		panic(fmt.Sprintf("unexpected vote type %v", vote.Type))
 	}
+	ll.AddMsgIf("t3", t3.End(), 1000)
 
 	return added, err
 }
