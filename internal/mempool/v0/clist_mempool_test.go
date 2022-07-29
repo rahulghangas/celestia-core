@@ -233,7 +233,7 @@ func TestMempoolUpdate(t *testing.T) {
 		originalHash := sha256.Sum256(originalTx)
 
 		// create the wrapped child transaction
-		wTx, err := types.WrapMalleatedTx(originalHash[:], malleatedTx)
+		wTx, err := types.WrapMalleatedTx(originalHash[:], 0, malleatedTx)
 		require.NoError(t, err)
 
 		// add the parent transaction to the mempool
