@@ -228,6 +228,7 @@ func WrapMalleatedTx(originalHash []byte, shareIndex uint32, malleated Tx) (Tx, 
 	wTx := tmproto.MalleatedTx{
 		OriginalTxHash: originalHash,
 		Tx:             malleated,
+		ShareIndex:     shareIndex,
 	}
 	return proto.Marshal(&wTx)
 }
