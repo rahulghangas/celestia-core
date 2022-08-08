@@ -1175,7 +1175,7 @@ func (msgs Messages) SplitIntoShares() NamespacedShares {
 }
 
 func (msgs *Messages) SortMessages() {
-	sort.Slice(msgs.MessagesList, func(i, j int) bool {
+	sort.SliceStable(msgs.MessagesList, func(i, j int) bool {
 		return bytes.Compare(msgs.MessagesList[i].NamespaceID, msgs.MessagesList[j].NamespaceID) < 0
 	})
 }
